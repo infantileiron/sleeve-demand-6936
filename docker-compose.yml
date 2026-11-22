@@ -1,0 +1,80 @@
+name: sleeve-demand
+x-app: &app
+  build: ./backend
+  environment: &env
+    DATABASE_URL: mysql+pymysql://archive:${DB_PASSWORD:-archive_local_demo}@db:3306/archive?charset=utf8mb4
+    REDIS_URL: redis://redis:6379/0
+    JWT_SECRET: ${JWT_SECRET:-archive-local-development-secret-change-32-chars}
+    SEED_DEMO: ${SEED_DEMO:-true}
+  volumes: [artifacts:/artifacts]
+  depends_on:
+    db: {condition: service_healthy}
+    redis: {condition: service_healthy}
+services:
+  db:
+    image: mysql:8.0
+    container_name: ${COMPOSE_PROJECT_NAME:-sleeve-demand}-db
+    environment:
+      MYSQL_USER: archive
+      MYSQL_PASSWORD: ${DB_PASSWORD:-archive_local_demo}
+      MYSQL_DATABASE: archive
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-archive_root_local}
+    ports: ["127.0.0.1:${DB_PORT:-17777}:3306"]
+    volumes: [dbdata:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -Nse "SELECT 1"']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-sleeve-demand}-redis
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  backend:
+    <<: *app
+    container_name: ${COMPOSE_PROJECT_NAME:-sleeve-demand}-backend
+    ports: ["127.0.0.1:${BACKEND_PORT:-19277}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+  worker:
+    <<: *app
+    container_name: ${COMPOSE_PROJECT_NAME:-sleeve-demand}-worker
+    command: [python, -m, src.worker]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import os,time; assert time.time()-os.path.getmtime('/tmp/worker-heartbeat')<20"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  frontend:
+    build: ./frontend
+    container_name: ${COMPOSE_PROJECT_NAME:-sleeve-demand}-frontend
+    ports: ["127.0.0.1:${FRONTEND_PORT:-18277}:80"]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  dbdata:
+  redisdata:
+  artifacts:
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-10.221.208.0/24}
