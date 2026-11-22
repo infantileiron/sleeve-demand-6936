@@ -4,9 +4,19 @@
 
 | 角色 | 常用页面 | 权限与动作 |
 |---|---|---|
-| `analyst` 档案备料员 | 规格账本、领用周序列、滚动回测 | 建规格、登记及补报、执行计算 |
-| `manager` 材料负责人 | 领用备料单 | 分析员权限，另可签单和查询审计 |
-| `viewer` 修复组观察员 | 四个模块 | 查阅与下载证据 |
+| `analyst` 档案备料员 | 规格账本、领用周序列、配料与缺口、滚动回测 | 建规格、登记及补报、提交领料单、入库盘点、核清周领用、执行计算 |
+| `manager` 材料负责人 | 领用备料单、周核清 | 分析员权限，另可签单和查询审计 |
+| `viewer` 修复组观察员 | 五个模块 | 查阅与下载证据 |
+
+## 配料与缺口
+
+几个修复工位共用一批封套库存，领料单按下面口径配料：
+
+- 每行需求先按原规格满足；只有登记了「大一号」代用规格的材料才可代用，未登记的只收原规格。代用规格在建规格时的「可代用的大一号规格」里设置。
+- 提交领料单只做配料占用，不立即扣库存；优先让尽可能多的领料单整单领齐，整单数相同时按提交先后先到先得。
+- 领料（实发）把占用转为实发记录并扣减现存；已发数量不回退。盘点只把现存校正为实盘值并重排未领部分，旧单凭单号可查到现在能领的数量与缺口。
+- 并发提交与领料用数据库单行锁串行化，不会超发；同一 `request_key` 重试返回原单，不重复占用或扣减。
+- 同一周同一规格的多笔实发生成后，该周的周领用在核清前记为缺传；材料负责人核清时把这些实发合并写为已核的周领用。
 
 ## 周一工作剧本
 
@@ -18,6 +28,7 @@
 6. 10:20 提交 A4 备料测算，SBA 系数 0.20，移动平均窗口 8 周。结果展示各起点发生量及误差。
 7. 10:45 材料负责人复核包数和用途后签核，回看此前缺传单保留的失败证据。
 8. 11:00 下载 CSV 提供给采购，采购另行扣除库存与在途。
+9. 11:15 在「配料与缺口」按库存给各工位配料：整单领齐优先、先到先得，缺口留在单上。盘点少料后只重排未领部分；凭单号可查旧单现在能领什么。
 
 ## 启动
 
@@ -37,7 +48,7 @@ docker compose exec -T backend python -m scripts.seed_demo
 | db | MySQL 8.0 保存规格、周记录、备料单、审计 |
 | redis | Redis 7，健康探针与队列通知 |
 
-`.env` 可覆盖 `FRONTEND_PORT`、`BACKEND_PORT`、`DB_PORT`、`JWT_SECRET`、`DB_PASSWORD`、`MYSQL_ROOT_PASSWORD` 与 `SEED_DEMO`。本地开发可用 `docker compose exec -T backend python -m compileall src`。结构定义和输入模型位于 `backend/src/models` 和 `schemas`，计算位于 `backend/src/services/forecast.py`，`frontend/src/pages` 按业务分页面。角色和任务状态出现在 `backend/src/constants/enums.py` / `frontend/src/constants/enums.js`、登录授权、任务切换和备料报告处；周状态见 `UsageInput` 及领用序列页。
+`.env` 可覆盖 `FRONTEND_PORT`、`BACKEND_PORT`、`DB_PORT`、`JWT_SECRET`、`DB_PASSWORD`、`MYSQL_ROOT_PASSWORD` 与 `SEED_DEMO`。本地开发可用 `docker compose exec -T backend python -m compileall src`。结构定义和输入模型位于 `backend/src/models` 和 `schemas`，预测计算位于 `backend/src/services/forecast.py`，配料算法位于 `services/allocation.py`，领料与周核清位于 `services/fulfillment.py`，`frontend/src/pages` 按业务分页面。后端测试在 `backend/tests`，用 SQLite 运行：`cd backend && python -m pytest tests`。角色和任务状态出现在 `backend/src/constants/enums.py` / `frontend/src/constants/enums.js`、登录授权、任务切换和备料报告处；周状态见 `UsageInput` 及领用序列页。
 
 ## 口径与使用边界
 

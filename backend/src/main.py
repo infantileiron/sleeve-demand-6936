@@ -14,6 +14,9 @@ from src.services.business import queue
 @asynccontextmanager
 async def lifespan(app):
     Base.metadata.create_all(engine)
+    with Session() as db:
+        from src.services.fulfillment import ensure_lock_row
+        ensure_lock_row(db)
     if os.getenv('SEED_DEMO', 'true').lower() == 'true':
         try:
             from scripts.seed_demo import seed

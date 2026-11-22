@@ -5,8 +5,12 @@ from src.config.database import get_db
 from src.controllers.auth import current, login, manager, writable
 from src.controllers.export import export
 from src.models.entities import Analysis, Audit, Sleeve, Usage
-from src.schemas.business import AnalysisInput, SleeveInput, UsageInput, Login, Publication
+from src.schemas.business import (
+    AnalysisInput, Login, Publication, ReconciliationInput, RequisitionInput, SleeveInput,
+    StockInput, StocktakeInput, UsageInput, WorkstationInput,
+)
 from src.services import business as svc
+from src.services import fulfillment as fulfill
 
 router = APIRouter(prefix='/api')
 
@@ -77,3 +81,55 @@ def publish(id: int, data: Publication, db=Depends(get_db), user=Depends(manager
 @router.get('/audits')
 def audit_log(db=Depends(get_db), user=Depends(manager)):
     return [svc.record(item) for item in db.scalars(select(Audit).order_by(Audit.id.desc()).limit(100))]
+
+
+# ---- 配料、领料与周核清 ----
+
+@router.get('/workstations')
+def workstations(db=Depends(get_db), user=Depends(current)):
+    return fulfill.list_workstations(db)
+
+
+@router.post('/workstations', status_code=201)
+def create_workstation(data: WorkstationInput, db=Depends(get_db), user=Depends(writable)):
+    return fulfill.create_workstation(db, data, user)
+
+
+@router.get('/fulfillment')
+def fulfillment(db=Depends(get_db), user=Depends(current)):
+    return fulfill.fulfillment_view(db)
+
+
+@router.post('/requisitions', status_code=201)
+def create_requisition(data: RequisitionInput, db=Depends(get_db), user=Depends(writable)):
+    return fulfill.submit_requisition(db, data, user)
+
+
+@router.get('/requisitions/{id}')
+def requisition(id: int, db=Depends(get_db), user=Depends(current)):
+    return fulfill.get_requisition(db, id)
+
+
+@router.post('/requisitions/{id}/issue')
+def issue(id: int, db=Depends(get_db), user=Depends(writable)):
+    return fulfill.issue_requisition(db, id, user)
+
+
+@router.post('/stock/receive')
+def receive(data: StockInput, db=Depends(get_db), user=Depends(writable)):
+    return fulfill.receive_stock(db, data, user)
+
+
+@router.post('/stock/take')
+def stocktake(data: StocktakeInput, db=Depends(get_db), user=Depends(writable)):
+    return fulfill.stocktake(db, data, user)
+
+
+@router.post('/weeks/reconcile', status_code=201)
+def reconcile(data: ReconciliationInput, db=Depends(get_db), user=Depends(writable)):
+    return fulfill.reconcile_week(db, data, user)
+
+
+@router.get('/weeks/reconciliations')
+def reconciliations(db=Depends(get_db), user=Depends(current)):
+    return fulfill.list_reconciliations(db)

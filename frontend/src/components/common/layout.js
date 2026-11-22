@@ -1,6 +1,6 @@
 import {h} from '../../utils/html.js';
 import {roles} from '../../constants/enums.js';
-const menu = [['sleeves','规格账本'],['usage','领用周序列'],['analyze','滚动回测'],['reports','领用备料单']];
+const menu = [['sleeves','规格账本'],['usage','领用周序列'],['fulfillment','配料与缺口'],['analyze','滚动回测'],['reports','领用备料单']];
 export function shell(body, page, user) {
   return `<header class="masthead"><a class="brand" href="#sleeves">槐页修复 <span>材料调度</span></a>
     <nav aria-label="业务模块">${menu.map(([link, label]) => `<a href="#${link}" ${page === link ? 'aria-current="page"' : ''}>${h(label)}</a>`).join('')}</nav>

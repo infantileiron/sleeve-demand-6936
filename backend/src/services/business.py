@@ -26,6 +26,11 @@ def save_input(db, model, data, user):
             raise HTTPException(422, '请选择有效封套规格')
         key = f'{data.sleeve_code}/{data.week}'
     else:
+        if data.substitute_code:
+            if data.substitute_code == data.code:
+                raise HTTPException(422, '代用规格不能是自身')
+            if not db.scalar(select(Sleeve.id).where(Sleeve.code == data.substitute_code)):
+                raise HTTPException(422, '请选择有效的代用规格')
         key = data.code
     item = model(**data.model_dump())
     db.add(item)

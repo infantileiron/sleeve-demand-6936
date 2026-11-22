@@ -8,4 +8,13 @@ export const api = {
   analysis: id => send(`/analyses/${id}`),
   publish: (id, note) => send(`/analyses/${id}/publish`, {note}),
   export: id => send(`/analyses/${id}/export`, undefined, true),
+  fulfillment: () => send('/fulfillment'),
+  workstations: () => send('/workstations'),
+  requisition: id => send(`/requisitions/${id}`),
+  submitRequisition: data => send('/requisitions', data),
+  issueRequisition: id => send(`/requisitions/${id}/issue`),
+  receiveStock: data => send('/stock/receive', data),
+  takeStock: data => send('/stock/take', data),
+  reconcileWeek: data => send('/weeks/reconcile', data),
+  reconciliations: () => send('/weeks/reconciliations'),
 };
